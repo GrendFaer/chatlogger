@@ -13,6 +13,20 @@
 
 ## 📥 Установка
 
+### Быстрая установка (скачать готовый мод)
+
+1. **Скачайте JAR файл мода:**
+   - Перейдите в папку [releases](releases/)
+   - Скачайте `chatlogger-1.0.jar`
+   - Или напрямую: [chatlogger-1.0.jar](releases/chatlogger-1.0.jar/chatlogger-1.0-SNAPSHOT.jar)
+
+2. **Установите Fabric Loader и Fabric API** (см. ниже)
+
+3. **Поместите JAR файл в папку mods:**
+   - `%appdata%/.minecraft/mods/` (Windows)
+   - `~/Library/Application Support/minecraft/mods/` (Mac)
+   - `~/.minecraft/mods/` (Linux)
+
 ### Требования
 - Minecraft 1.21.4
 - [Fabric Loader](https://fabricmc.net/use/installer/) 0.17.3 или выше
