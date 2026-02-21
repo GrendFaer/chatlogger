@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "id": "chatlogger",
+  "version": "${version}",
+  "name": "ChatLogger",
+  "description": "Мод для сбора информации об игроках из чата с группировкой по кланам",
+  "authors": ["Grend"],
+  "contact": {},
+  "license": "All-Rights-Reserved",
+  "icon": "assets/chatlogger/icon.png",
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "Grend.chatlogger.client.ChatloggerClient"
+    ]
+  },
+  "mixins": [
+    {
+      "config": "chatlogger.client.mixins.json",
+      "environment": "client"
+    }
+  ],
+  "depends": {
+    "fabricloader": ">=0.17.3",
+    "fabric-api": "*",
+    "minecraft": "${minecraft_version}",
+    "java": ">=21"
+  }
+}
