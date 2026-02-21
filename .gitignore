@@ -10,13 +10,6 @@ build/
 *.ipr
 *.iws
 
-# Run directory
-run/
-
-# Compiled classes
-out/
-target/
-
 # Logs
 *.log
 
@@ -24,15 +17,6 @@ target/
 .DS_Store
 Thumbs.db
 desktop.ini
-
-# Config files (optional - uncomment if you don't want to commit configs)
-# chatlogger_config.properties
-# chatlogger_highlight_config.properties
-# chatlogger_data.txt
-
-# JAR files (the mod will be built fresh by anyone cloning)
-build/libs/*.jar
-!build/libs/*-sources.jar
 
 # Temporary files
 tmp/
