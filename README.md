@@ -18,7 +18,7 @@
 1. **Скачайте JAR файл мода:**
    - Перейдите в папку [releases](releases/)
    - Скачайте `chatlogger-1.0.jar`
-   - Или напрямую: [chatlogger-1.0.jar](releases/chatlogger-1.0.jar/chatlogger-1.0-SNAPSHOT.jar)
+   - Или напрямую: [Скачать JAR](releases/chatlogger-1.0.jar?raw=true)
 
 2. **Установите Fabric Loader и Fabric API** (см. ниже)
 
