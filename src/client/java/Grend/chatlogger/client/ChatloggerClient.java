@@ -16,8 +16,14 @@ public class ChatloggerClient implements ClientModInitializer {
             ModCommands.register(dispatcher);
         });
 
+        ModKeyBindings.register();
+        
+        // Регистрируем обработчик тиков
+        TickHandler.register();
+
         DataManager.getInstance().load();
         ModConfig.getInstance();
+        RunesConfig.getInstance();
 
         DataManager manager = DataManager.getInstance();
         if (manager.getPlayerCount() > 0) {
@@ -40,6 +46,9 @@ public class ChatloggerClient implements ClientModInitializer {
             });
         }
 
-        ClientLifecycleEvents.CLIENT_STOPPING.register(client -> DataManager.getInstance().save());
+        ClientLifecycleEvents.CLIENT_STOPPING.register(client -> {
+            DataManager.getInstance().save();
+            RunesConfig.getInstance().save();
+        });
     }
 }

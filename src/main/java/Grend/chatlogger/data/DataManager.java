@@ -258,4 +258,27 @@ public class DataManager {
             save();
         }
     }
+
+    /**
+     * Удаляет весь клан (помечает всех игроков как "Без клана")
+     */
+    public void deleteClan(String clan) {
+        List<PlayerData> clanPlayers = getPlayersByClan(clan);
+        for (PlayerData player : clanPlayers) {
+            player.setClan("Без клана");
+        }
+        save();
+    }
+
+    /**
+     * Получает средний уровень игроков указанного клана
+     */
+    public int getAverageLevelByClan(String clan) {
+        List<PlayerData> clanPlayers = getPlayersByClan(clan);
+        if (clanPlayers.isEmpty()) {
+            return 0;
+        }
+        int totalLevel = clanPlayers.stream().mapToInt(PlayerData::getLevel).sum();
+        return totalLevel / clanPlayers.size();
+    }
 }

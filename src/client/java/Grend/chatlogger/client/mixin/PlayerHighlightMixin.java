@@ -1,10 +1,14 @@
 package Grend.chatlogger.client.mixin;
 
+import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.network.AbstractClientPlayerEntity;
 import net.minecraft.client.render.RenderLayer;
 import net.minecraft.client.render.VertexConsumer;
 import net.minecraft.client.render.VertexConsumerProvider;
 import net.minecraft.client.render.entity.LivingEntityRenderer;
 import net.minecraft.client.render.entity.state.LivingEntityRenderState;
+import net.minecraft.entity.LivingEntity;
+import net.minecraft.entity.player.PlayerEntity;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -14,39 +18,79 @@ import Grend.chatlogger.client.ClanHighlightConfig;
 import Grend.chatlogger.data.DataManager;
 import Grend.chatlogger.data.PlayerData;
 
+import java.util.List;
+
 @Mixin(LivingEntityRenderer.class)
-public class PlayerHighlightMixin {
+public class PlayerHighlightMixin<L extends LivingEntity, S extends LivingEntityRenderState> {
 
     private static float[] currentColor = null;
+    private static String lastMatchedPlayer = null;
 
     @Inject(
         method = "render(Lnet/minecraft/client/render/entity/state/LivingEntityRenderState;Lnet/minecraft/client/util/math/MatrixStack;Lnet/minecraft/client/render/VertexConsumerProvider;I)V",
         at = @At("HEAD")
     )
-    private void beforeRender(LivingEntityRenderState state, 
-                              net.minecraft.client.util.math.MatrixStack matrixStack, 
-                              VertexConsumerProvider vertexConsumerProvider, 
+    private void beforeRender(S state,
+                              net.minecraft.client.util.math.MatrixStack matrixStack,
+                              VertexConsumerProvider vertexConsumerProvider,
                               int i, CallbackInfo ci) {
         currentColor = null;
+        lastMatchedPlayer = null;
 
         try {
             if (!ClanHighlightConfig.getInstance().isHighlightEnabled()) {
                 return;
             }
 
-            if (state == null || state.displayName == null) {
+            MinecraftClient mc = MinecraftClient.getInstance();
+            if (mc.world == null || mc.player == null) {
                 return;
             }
 
-            String displayName = state.displayName.getString();
-            PlayerData playerData = DataManager.getInstance().getPlayer(displayName);
+            // Получаем всех игроков в мире
+            List<AbstractClientPlayerEntity> players = mc.world.getPlayers();
             
+            // Пытаемся найти игрока по имени из displayName
+            String displayName = state.displayName != null ? state.displayName.getString() : null;
+            
+            PlayerEntity targetPlayer = null;
+            
+            if (displayName != null && !displayName.isEmpty()) {
+                // Ищем игрока по имени
+                for (AbstractClientPlayerEntity player : players) {
+                    if (player.getName().getString().equals(displayName)) {
+                        targetPlayer = player;
+                        break;
+                    }
+                }
+            }
+            
+            // Если не нашли по displayName, пробуем найти по расстоянию (для отладки)
+            if (targetPlayer == null) {
+                for (AbstractClientPlayerEntity player : players) {
+                    if (player == mc.player) continue; // Пропускаем себя
+                    
+                    double dist = player.squaredDistanceTo(mc.player);
+                    if (dist < 100) { // В радиусе 10 блоков
+                        targetPlayer = player;
+                        break;
+                    }
+                }
+            }
+            
+            if (targetPlayer == null) {
+                return;
+            }
+
+            String playerName = targetPlayer.getName().getString();
+            PlayerData playerData = DataManager.getInstance().getPlayer(playerName);
+
             if (playerData == null) {
                 return;
             }
 
             String clan = playerData.getClan();
-            if (clan == null || clan.trim().isEmpty()) {
+            if (clan == null || clan.trim().isEmpty() || "Без клана".equalsIgnoreCase(clan)) {
                 return;
             }
 
@@ -57,9 +101,15 @@ public class PlayerHighlightMixin {
 
             String colorHex = config.getClanColor(clan);
             currentColor = ClanHighlightConfig.hexToRgb(colorHex);
+            lastMatchedPlayer = playerName;
+            
+            // Отладочное сообщение
+            System.out.println("[ChatLogger] Подсветка игрока: " + playerName + " (клан: " + clan + ", цвет: " + colorHex + ")");
+            
         } catch (Exception e) {
             // Игнорируем ошибки, чтобы не крашить игру
             currentColor = null;
+            System.err.println("[ChatLogger] Ошибка подсветки: " + e.getMessage());
         }
     }
 
@@ -67,11 +117,12 @@ public class PlayerHighlightMixin {
         method = "render(Lnet/minecraft/client/render/entity/state/LivingEntityRenderState;Lnet/minecraft/client/util/math/MatrixStack;Lnet/minecraft/client/render/VertexConsumerProvider;I)V",
         at = @At("RETURN")
     )
-    private void afterRender(LivingEntityRenderState state, 
-                             net.minecraft.client.util.math.MatrixStack matrixStack, 
-                             VertexConsumerProvider vertexConsumerProvider, 
+    private void afterRender(S state,
+                             net.minecraft.client.util.math.MatrixStack matrixStack,
+                             VertexConsumerProvider vertexConsumerProvider,
                              int i, CallbackInfo ci) {
         currentColor = null;
+        lastMatchedPlayer = null;
     }
 
     @Redirect(

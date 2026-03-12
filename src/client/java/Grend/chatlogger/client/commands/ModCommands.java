@@ -18,10 +18,14 @@ import static net.fabricmc.fabric.api.client.command.v2.ClientCommandManager.arg
 import static net.fabricmc.fabric.api.client.command.v2.ClientCommandManager.literal;
 import static com.mojang.brigadier.arguments.StringArgumentType.greedyString;
 import static com.mojang.brigadier.arguments.StringArgumentType.word;
+import static com.mojang.brigadier.arguments.StringArgumentType.string;
 import static com.mojang.brigadier.arguments.IntegerArgumentType.integer;
 import Grend.chatlogger.client.util.OnlineChecker;
 import Grend.chatlogger.client.ModConfig;
 import Grend.chatlogger.client.ClanHighlightConfig;
+import Grend.chatlogger.client.gui.ChatLoggerGui;
+import Grend.chatlogger.client.gui.RunesScreen;
+import Grend.chatlogger.client.RunesManager;
 
 /**
  * Команды мода ChatLogger
@@ -94,11 +98,13 @@ public class ModCommands {
             )
             .then(literal("add")
                 .then(argument("player", StringArgumentType.word())
-                    .then(argument("clan", StringArgumentType.word())
-                        .executes(ModCommands::addPlayerToClan)
-                        .then(argument("level", IntegerArgumentType.integer(1, 100))
+                    .then(argument("level", IntegerArgumentType.integer(1, 100))
+                        .then(argument("clan", greedyString())
                             .executes(ModCommands::addPlayerToClanWithLevel)
                         )
+                    )
+                    .then(argument("clan", greedyString())
+                        .executes(ModCommands::addPlayerToClan)
                     )
                 )
             )
@@ -131,7 +137,37 @@ public class ModCommands {
             .then(literal("help")
                 .executes(ModCommands::help)
             )
+            .then(literal("gui")
+                .executes(ModCommands::openGui)
+            )
+            .then(literal("runesbag")
+                .executes(ModCommands::openRunesBag)
+            )
+            .then(literal("runeset")
+                .then(argument("set", integer(1, 5))
+                    .executes(ModCommands::applyRuneSet)
+                )
+            )
         );
+    }
+
+    private static int openGui(CommandContext<FabricClientCommandSource> context) {
+        ChatLoggerGui.openMainScreen();
+        sendFeedback("§a[ChatLogger] Открываю GUI...");
+        return Command.SINGLE_SUCCESS;
+    }
+
+    private static int openRunesBag(CommandContext<FabricClientCommandSource> context) {
+        RunesManager.openRunesBag();
+        sendFeedback("§a[ChatLogger] Открытие мешка с рунами...");
+        return Command.SINGLE_SUCCESS;
+    }
+
+    private static int applyRuneSet(CommandContext<FabricClientCommandSource> context) {
+        int setIndex = IntegerArgumentType.getInteger(context, "set") - 1;
+        RunesManager.applyRuneSet(setIndex);
+        sendFeedback("§a[ChatLogger] Применение сета рун #" + (setIndex + 1) + "...");
+        return Command.SINGLE_SUCCESS;
     }
 
     private static int exportAll(CommandContext<FabricClientCommandSource> context) {
@@ -293,6 +329,9 @@ public class ModCommands {
         sendFeedback("§7/chatlogger highlight - настройки подсветки кланов");
         sendFeedback("§7/chatlogger highlight debug <игрок> - отладка подсветки");
         sendFeedback("§7/chatlogger sendclan <клан> - отправить состав в клан-чат");
+        sendFeedback("§7/chatlogger gui - открыть GUI меню мода");
+        sendFeedback("§7/chatlogger runesbag - открыть мешок с рунами");
+        sendFeedback("§7/chatlogger runeset <1-5> - применить сет рун");
         return Command.SINGLE_SUCCESS;
     }
 
@@ -364,9 +403,9 @@ public class ModCommands {
 
     private static int addPlayerToClanWithLevel(CommandContext<FabricClientCommandSource> context) {
         String player = StringArgumentType.getString(context, "player");
-        String clan = StringArgumentType.getString(context, "clan");
         int level = IntegerArgumentType.getInteger(context, "level");
-        
+        String clan = StringArgumentType.getString(context, "clan");
+
         DataManager.getInstance().addPlayerToClan(player, clan, level);
         sendFeedback("§a[ChatLogger] Игрок " + player + " добавлен в клан " + clan + " [уровень " + level + "]");
         return Command.SINGLE_SUCCESS;
@@ -506,10 +545,9 @@ public class ModCommands {
         }
 
         // Формируем сообщение с ограничением в 256 символов (лимит Minecraft)
-        // Без кодов форматирования (§), так как сервер их отклоняет
         String header = symbol + clan + ": ";
         StringBuilder message = new StringBuilder(header);
-        
+
         if (!onlinePlayers.isEmpty()) {
             message.append("[Онлайн]: ");
             boolean first = true;
@@ -523,7 +561,7 @@ public class ModCommands {
                 first = false;
             }
         }
-        
+
         if (!offlinePlayers.isEmpty()) {
             if (message.length() > header.length()) {
                 if (message.length() + 3 > 250) {
@@ -548,9 +586,8 @@ public class ModCommands {
         }
 
         String finalMessage = message.length() > 256 ? message.substring(0, 253) + "..." : message.toString();
-        
+
         if (mc.player != null) {
-            mc.player.sendMessage(Text.literal(finalMessage), false);
             // Отправляем сообщение в чат (без кодов форматирования)
             mc.player.networkHandler.sendChatMessage(finalMessage);
         }
@@ -562,6 +599,86 @@ public class ModCommands {
     private static void sendFeedback(String message) {
         if (mc.player != null) {
             mc.player.sendMessage(Text.literal(message), false);
+        }
+    }
+
+    /**
+     * Публичный метод для отправки состава клана в чат (используется из GUI)
+     */
+    public static void sendClanMessage(String clan, MinecraftClient client) {
+        DataManager manager = DataManager.getInstance();
+        var clanPlayers = manager.getPlayersByClan(clan);
+
+        if (clanPlayers.isEmpty()) {
+            if (client != null && client.player != null) {
+                client.player.sendMessage(Text.literal("§7[ChatLogger] Клан '" + clan + "' не найден или пуст"), false);
+            }
+            return;
+        }
+
+        ModConfig config = ModConfig.getInstance();
+        String symbol = config.getClanChatSymbol();
+
+        int onlineCount = 0;
+        List<String> onlinePlayers = new ArrayList<>();
+        List<String> offlinePlayers = new ArrayList<>();
+
+        for (var player : clanPlayers) {
+            String entry = player.getNickname() + "[" + player.getLevel() + "]";
+            if (player.isOnline()) {
+                onlineCount++;
+                onlinePlayers.add(entry);
+            } else {
+                offlinePlayers.add(entry);
+            }
+        }
+
+        String header = symbol + clan + ": ";
+        StringBuilder message = new StringBuilder(header);
+
+        if (!onlinePlayers.isEmpty()) {
+            message.append("[Онлайн]: ");
+            boolean first = true;
+            for (String player : onlinePlayers) {
+                if (!first) message.append(", ");
+                if (message.length() + player.length() > 250) {
+                    message.append("...");
+                    break;
+                }
+                message.append(player);
+                first = false;
+            }
+        }
+
+        if (!offlinePlayers.isEmpty()) {
+            if (message.length() > header.length()) {
+                if (message.length() + 3 > 250) {
+                    message = new StringBuilder(message.substring(0, Math.min(250, message.length()))).append("...");
+                } else {
+                    message.append(" | ");
+                }
+            }
+            if (message.length() < 250) {
+                message.append("[Оффлайн]: ");
+                boolean first = true;
+                for (String player : offlinePlayers) {
+                    if (!first) message.append(", ");
+                    if (message.length() + player.length() > 250) {
+                        message.append("...");
+                        break;
+                    }
+                    message.append(player);
+                    first = false;
+                }
+            }
+        }
+
+        String finalMessage = message.length() > 256 ? message.substring(0, 253) + "..." : message.toString();
+
+        if (client != null && client.player != null) {
+            // Отправляем сообщение в чат (без кодов форматирования для сервера)
+            client.player.networkHandler.sendChatMessage(finalMessage);
+            client.player.sendMessage(Text.literal("§a[ChatLogger] Состав клана отправлен (" + onlineCount + "/" + clanPlayers.size() + " онлайн)"), false);
         }
     }
 }
